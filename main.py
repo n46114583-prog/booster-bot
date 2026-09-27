@@ -19,7 +19,7 @@ from telethon.errors import FloodWaitError, SessionPasswordNeededError
 API_ID = 35686806
 API_HASH = "4ba8915f6e4f3aa73933c540ddaff4f7"
 BOT_TOKEN = "8635265114:AAGjfhrafuLucHYzd32BhFsVy6PdF_php1E"
-MONGO_URI = "mongodb+srv://n46114583_db_user:0xzpnb1DlNfSCNA7@cluster0.de2uevc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URI = "mongodb+srv://N46114583_db_user:0xzpnb1DlNfSCNA7@cluster0.de2uevc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
 # ডাটাবেজ কানেকশন
 mongo_client = MongoClient(
@@ -366,5 +366,7 @@ async def main():
     await bot.run_until_disconnected()
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        pass
