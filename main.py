@@ -12,7 +12,7 @@ from pymongo import MongoClient
 API_ID = 35686806
 API_HASH = "4ba8915f6e4f3aa73933c540ddaff4f7"
 BOT_TOKEN = "8635265114:AAGjfhrafuLucHYzd32BhFsVy6PdF_php1E"
-MONGO_URI = "mongodb+srv://N46114583_db_user:guCLo8Bx9gEOeglC@cluster0.bcnkzjo.mongodb.net/?appName=Cluster0"
+MONGO_URI = "mongodb+srv://n46114583_db_user:Asifpass12345@cluster0.bcnkzjo.mongodb.net/?appName=Cluster0"
 
 # ডাটাবেজ কানেকশন (SSL সার্টিফিকেট ফিক্স সহ)
 mongo = MongoClient(
