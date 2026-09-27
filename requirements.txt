@@ -2,3 +2,4 @@ telethon
 pymongo[srv]
 certifi
 aiohttp
+cryptography
