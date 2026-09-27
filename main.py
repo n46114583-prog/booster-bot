@@ -21,7 +21,6 @@ API_HASH = "4ba8915f6e4f3aa73933c540ddaff4f7"
 BOT_TOKEN = "8635265114:AAGjfhrafuLucHYzd32BhFsVy6PdF_php1E"
 MONGO_URI = "mongodb+srv://n46114583_db_user:0xzpnb1DlNfSCNA7@cluster0.de2uevc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 
-# ডাটাবেজ কানেকশন
 mongo_client = MongoClient(
     MONGO_URI,
     tlsCAFile=certifi.where(),
@@ -52,9 +51,9 @@ def main_menu():
         [Button.inline("⚡ REACT + VIEW", data="react_view"), Button.inline("📋 ACCOUNTS LIST", data="list_acc")]
     ]
 
-# Render-এর জন্য ব্যাকগ্রাউন্ড ডামি ওয়েব সার্ভার
+# Render ফেক পোর্ট
 async def handle_ping(request):
-    return web.Response(text="Bot is Alive & Running 24/7 on Render!")
+    return web.Response(text="Bot is Running 24/7!")
 
 async def start_dummy_server():
     app = web.Application()
@@ -64,11 +63,12 @@ async def start_dummy_server():
     port = int(os.environ.get("PORT", 8080))
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    print(f"Render Web Server started on port {port}")
+    print(f"Render Server Port: {port}")
 
+# অ্যান্টি-ড্রপ ব্যাকগ্রাউন্ড পিং
 async def vc_keep_alive():
     while True:
-        await asyncio.sleep(15)
+        await asyncio.sleep(12)
         for client, input_call in active_vc_sessions:
             try:
                 await client(CheckGroupCallRequest(call=input_call))
@@ -93,7 +93,6 @@ async def resolve_target(client, link):
             pass
         return await client.get_entity(u)
 
-# --- /start ড্যাশবোর্ড ---
 @bot.on(events.NewMessage(pattern='/start'))
 async def start_cmd(event):
     try:
@@ -114,7 +113,6 @@ async def start_cmd(event):
     )
     await event.respond(text, buttons=main_menu())
 
-# --- বাটন হ্যান্ডলার ---
 @bot.on(events.CallbackQuery)
 async def callback(event):
     uid = event.sender_id
@@ -130,11 +128,11 @@ async def callback(event):
 
     elif data == "leave_ch":
         user_states[uid] = {'step': 'leave_target'}
-        await event.respond("📩 **যে চ্যানেল/গ্রুপ থেকে লিভ নিতে চান তার লিংক বা ইউজারনেম দিন:**")
+        await event.respond("📩 **যে চ্যানেল/গ্রুপ থেকে লিভ নিতে চান তার লিংক দিন:**")
 
     elif data == "join_vc":
         user_states[uid] = {'step': 'vc_target'}
-        await event.respond("🎙 **লাইভ/ভয়েস চ্যাট চলছে এমন গ্রুপের লিংক দিন:**")
+        await event.respond("🎙 **গ্রুপের ইউজারনেম বা লিংক দিন (যেমন: `@mygroup` বা `https://t.me/...`):**")
 
     elif data == "leave_vc":
         global active_vc_sessions, keep_alive_task
@@ -146,7 +144,9 @@ async def callback(event):
             try:
                 await c(LeaveGroupCallRequest(call=ic))
             except Exception: pass
-            await c.disconnect()
+            try:
+                await c.disconnect()
+            except Exception: pass
         active_vc_sessions.clear()
         if keep_alive_task:
             keep_alive_task.cancel()
@@ -155,17 +155,16 @@ async def callback(event):
 
     elif data == "react_view":
         user_states[uid] = {'step': 'react_target'}
-        await event.respond("⚡ **পোস্টের লিংক দিন (যেমন: `t.me/channel/123`):**")
+        await event.respond("⚡ **পোস্ট লিংক দিন (যেমন: `t.me/channel/123`):**")
 
     elif data == "list_acc":
         sessions = list(sessions_col.find())
         if not sessions:
             await event.respond("📋 কোনো অ্যাকাউন্ট সংরক্ষিত নেই।")
         else:
-            txt = "\n".join([f"• `{s.get('phone')}`" for s in sessions[:20]])
-            await event.respond(f"📋 **মোট অ্যাকাউন্ট ({len(sessions)} টি):**\n\n{txt}")
+            txt = "\n".join([f"• `{s.get('phone')}`" for s in sessions])
+            await event.respond(f"📋 **সংরক্ষিত মোট অ্যাকাউন্ট ({len(sessions)} টি):**\n\n{txt}")
 
-# --- ইনপুট প্রসেসিং ---
 @bot.on(events.NewMessage)
 async def message_flow(event):
     if event.raw_text.startswith('/'): return
@@ -173,7 +172,7 @@ async def message_flow(event):
     state = user_states.get(uid, {})
     step = state.get('step')
 
-    # ১. ফোন নম্বর গ্রহণ
+    # ১. ফোন নম্বর
     if step == 'phone':
         phone = event.raw_text.strip().replace(" ", "")
         client = TelegramClient(StringSession(), API_ID, API_HASH)
@@ -186,12 +185,13 @@ async def message_flow(event):
                 'phone': phone,
                 'hash': req.phone_code_hash
             }
-            await event.respond("📩 **কোডটি পাঠান (প্রতিটি সংখ্যার মাঝে স্পেস দিয়ে লিখুন, যেমন: `1 2 3 4 5`):**")
+            await event.respond("📩 **কোডটি প্রতিটি সংখ্যার মাঝে স্পেস দিয়ে লিখুন (যেমন: `1 2 3 4 5`):**")
         except Exception as e:
-            await event.respond(f"❌ কোড পাঠাতে ব্যর্থ: {e}")
+            await client.disconnect()
             user_states.pop(uid, None)
+            await event.respond(f"❌ কোড পাঠাতে ব্যর্থ: {e}")
 
-    # ২. ওটিপি ও 2FA গ্রহণ
+    # ২. ওটিপি
     elif step == 'otp':
         code = event.raw_text.strip().replace(" ", "")
         client = state['client']
@@ -204,13 +204,14 @@ async def message_flow(event):
                 upsert=True
             )
             await client.disconnect()
-            await event.respond(f"✅ **{state['phone']} সফলভাবে সেভ হয়েছে!**", buttons=main_menu())
             user_states.pop(uid, None)
+            total = sessions_col.count_documents({})
+            await event.respond(f"✅ **{state['phone']} সেভ হয়েছে!** (মোট: {total} টি)", buttons=main_menu())
         except SessionPasswordNeededError:
             user_states[uid]['step'] = '2fa'
             await event.respond("🔐 **2-Step Verification পাসওয়ার্ড দিন:**")
         except Exception as e:
-            await event.respond(f"❌ ওটিপি ভুল: {e}")
+            await event.respond(f"❌ ওটিপি ভুল: {e}\nআবার কোড দিন:")
 
     elif step == '2fa':
         pwd = event.raw_text.strip()
@@ -224,17 +225,106 @@ async def message_flow(event):
                 upsert=True
             )
             await client.disconnect()
-            await event.respond(f"✅ **{state['phone']} সফলভাবে সেভ হয়েছে!**", buttons=main_menu())
             user_states.pop(uid, None)
+            total = sessions_col.count_documents({})
+            await event.respond(f"✅ **{state['phone']} সেভ হয়েছে!** (মোট: {total} টি)", buttons=main_menu())
         except Exception as e:
             await event.respond(f"❌ পাসওয়ার্ড ভুল: {e}")
 
-    # ৩. চ্যানেল জয়েন
+    # ৩. ভয়েস চ্যাট / লাইভ জয়েন (সবগুলো অ্যাকাউন্টের জন্য ফিক্সড)
+    elif step == 'vc_target':
+        link = event.raw_text.strip()
+        all_s = list(sessions_col.find())
+        if not all_s:
+            await event.respond("❌ কোনো অ্যাকাউন্ট নেই!")
+            user_states.pop(uid, None)
+            return
+
+        status_msg = await event.respond(f"🔍 **লাইভ স্ক্যান করা হচ্ছে... ({len(all_s)} টি অ্যাকাউন্ট প্রস্তুত)**")
+
+        # স্ক্যানার দিয়ে কল আইডি নিশ্চিত করা
+        finder = TelegramClient(StringSession(all_s[0]["session"]), API_ID, API_HASH)
+        await finder.connect()
+        try:
+            ent = await resolve_target(finder, link)
+            full = await finder(GetFullChannelRequest(ent))
+            call = full.full_chat.call
+            if not call or not getattr(call, 'id', None):
+                await status_msg.edit("⚠️ **গ্রুপে কোনো লাইভ বা ভয়েস চ্যাট চালু নেই!**")
+                await finder.disconnect()
+                user_states.pop(uid, None)
+                return
+            input_call = InputGroupCall(id=call.id, access_hash=call.access_hash)
+        except Exception as e:
+            await status_msg.edit(f"❌ গ্রুপ ভেরিফিকেশন ব্যর্থ: {e}")
+            await finder.disconnect()
+            user_states.pop(uid, None)
+            return
+        finally:
+            await finder.disconnect()
+
+        global active_vc_sessions, keep_alive_task
+        joined = 0
+
+        # সব অ্যাকাউন্ট দিয়ে ক্রমানুসারে প্রবেশ
+        for idx, doc in enumerate(all_s, 1):
+            phone = doc.get("phone", f"Acc-{idx}")
+            await status_msg.edit(f"⏳ **[{idx}/{len(all_s)}] {phone} লাইভে প্রবেশ করছে...**")
+            
+            c = TelegramClient(StringSession(doc["session"]), API_ID, API_HASH)
+            try:
+                await c.connect()
+                # ১. আগে গ্রুপে মেম্বার হিসেবে নিশ্চিত হওয়া
+                try:
+                    await resolve_target(c, link)
+                except Exception:
+                    pass
+
+                # ২. ইউজারের নিজস্ব আইডেন্টিটি তৈরি
+                me = await c.get_me()
+                peer = InputPeerUser(user_id=me.id, access_hash=me.access_hash)
+                
+                # ৩. ইউনিক WebRTC রেন্ডম SSRC
+                ssrc = random.randint(100000000, 999999999)
+                payload = json.dumps({"ssrc": ssrc, "muted": True, "video_stopped": True})
+
+                # ৪. কলে যোগ দেওয়া
+                await c(JoinGroupCallRequest(
+                    call=input_call,
+                    join_as=peer,
+                    params=DataJSON(data=payload),
+                    muted=True,
+                    video_stopped=True
+                ))
+                
+                # ক্লায়েন্ট কানেকশন ব্যাকগ্রাউন্ডে সচল রাখা
+                active_vc_sessions.append((c, input_call))
+                joined += 1
+                await asyncio.sleep(2)  # টেলিগ্রাম রেট-লিমিট বিরতি
+            except Exception as err:
+                print(f"Failed {phone}: {err}")
+                try:
+                    await c.disconnect()
+                except Exception:
+                    pass
+
+        # পিং টাস্ক সক্রিয় করা
+        if active_vc_sessions and not keep_alive_task:
+            keep_alive_task = asyncio.create_task(vc_keep_alive())
+
+        await status_msg.edit(
+            f"🎉 **মোট `{joined}` টি অ্যাকাউন্ট সফলভাবে কলে যুক্ত হয়েছে!**\n"
+            f"অ্যান্টি-ড্রপ গার্ড সক্রিয় আছে। বের করতে নিচের `LEAVE VC` চাপুন।", 
+            buttons=main_menu()
+        )
+        user_states.pop(uid, None)
+
+    # ৪. চ্যানেল জয়েন
     elif step == 'join_target':
         link = event.raw_text.strip()
-        await event.respond("⏳ সব অ্যাকাউন্ট জয়েন করানো হচ্ছে...")
         all_s = list(sessions_col.find())
         done = 0
+        status_msg = await event.respond(f"⏳ সব অ্যাকাউন্ট জয়েন করানো হচ্ছে...")
         for doc in all_s:
             c = TelegramClient(StringSession(doc["session"]), API_ID, API_HASH)
             try:
@@ -244,15 +334,15 @@ async def message_flow(event):
                 await c.disconnect()
                 await asyncio.sleep(2)
             except Exception: pass
-        await event.respond(f"🚀 **সম্পন্ন!** মোট `{done}` টি অ্যাকাউন্ট জয়েন করেছে।", buttons=main_menu())
+        await status_msg.edit(f"🚀 **সম্পন্ন!** মোট `{done}` টি অ্যাকাউন্ট জয়েন করেছে।", buttons=main_menu())
         user_states.pop(uid, None)
 
-    # ৪. চ্যানেল লিভ
+    # ৫. চ্যানেল লিভ
     elif step == 'leave_target':
         link = event.raw_text.strip().replace("https://t.me/", "").replace("@", "").split("/")[0]
-        await event.respond("⏳ সব অ্যাকাউন্ট থেকে লিভ নেওয়া হচ্ছে...")
         all_s = list(sessions_col.find())
         done = 0
+        status_msg = await event.respond(f"⏳ সব অ্যাকাউন্ট থেকে লিভ নেওয়া হচ্ছে...")
         for doc in all_s:
             c = TelegramClient(StringSession(doc["session"]), API_ID, API_HASH)
             try:
@@ -262,74 +352,10 @@ async def message_flow(event):
                 await c.disconnect()
                 await asyncio.sleep(1.5)
             except Exception: pass
-        await event.respond(f"📩 **সম্পন্ন!** মোট `{done}` টি অ্যাকাউন্ট লিভ নিয়েছে।", buttons=main_menu())
+        await status_msg.edit(f"📩 **সম্পন্ন!** মোট `{done}` টি অ্যাকাউন্ট লিভ নিয়েছে।", buttons=main_menu())
         user_states.pop(uid, None)
 
-    # ৫. লাইভ / VC জয়েন (Anti-Drop Enabled)
-    elif step == 'vc_target':
-        link = event.raw_text.strip()
-        await event.respond("🔍 **লাইভ স্ক্যান করা হচ্ছে...**")
-        all_s = list(sessions_col.find())
-        if not all_s:
-            await event.respond("❌ কোনো অ্যাকাউন্ট নেই!")
-            user_states.pop(uid, None)
-            return
-
-        finder = TelegramClient(StringSession(all_s[0]["session"]), API_ID, API_HASH)
-        await finder.connect()
-        try:
-            ent = await resolve_target(finder, link)
-            full = await finder(GetFullChannelRequest(ent))
-            call = full.full_chat.call
-            if not call or not getattr(call, 'id', None):
-                await event.respond("⚠️ এই গ্রুপে বর্তমানে কোনো লাইভ বা VC চালু নেই!")
-                await finder.disconnect()
-                user_states.pop(uid, None)
-                return
-            input_call = InputGroupCall(id=call.id, access_hash=call.access_hash)
-        except Exception as e:
-            await event.respond(f"❌ গ্রুপ ভেরিফিকেশন ব্যর্থ: {e}")
-            await finder.disconnect()
-            user_states.pop(uid, None)
-            return
-        finally:
-            await finder.disconnect()
-
-        await event.respond("🎙 **অ্যাকাউন্টগুলো লাইভে প্রবেশ করছে (Anti-Drop গার্ড সহ)...**")
-        global active_vc_sessions, keep_alive_task
-        joined = 0
-
-        for doc in all_s:
-            c = TelegramClient(StringSession(doc["session"]), API_ID, API_HASH)
-            try:
-                await c.connect()
-                await resolve_target(c, link)
-                me = await c.get_me()
-                peer = InputPeerUser(user_id=me.id, access_hash=me.access_hash)
-                
-                ssrc = random.randint(10000000, 99999999)
-                payload = json.dumps({"ssrc": ssrc, "muted": True, "video_stopped": True})
-                
-                await c(JoinGroupCallRequest(
-                    call=input_call,
-                    join_as=peer,
-                    params=DataJSON(data=payload),
-                    muted=True,
-                    video_stopped=True
-                ))
-                active_vc_sessions.append((c, input_call))
-                joined += 1
-                await asyncio.sleep(2)
-            except Exception:
-                await c.disconnect()
-
-        if active_vc_sessions and not keep_alive_task:
-            keep_alive_task = asyncio.create_task(vc_keep_alive())
-
-        await event.respond(f"🎉 **মোট `{joined}` টি অ্যাকাউন্ট লাইভে প্রবেশ করেছে!**\nবের করতে নিচের `LEAVE VC` বাটনে চাপুন।", buttons=main_menu())
-        user_states.pop(uid, None)
-
-    # ৬. রিঅ্যাকশন ও ভিউ
+    # ৬. ভিউ ও রিঅ্যাকশন
     elif step == 'react_target':
         link = event.raw_text.strip()
         try:
@@ -337,13 +363,13 @@ async def message_flow(event):
             ch = parts[0]
             mid = int(parts[1])
         except Exception:
-            await event.respond("❌ পোস্ট লিংক ভুল! আবার চেষ্টা করুন।")
+            await event.respond("❌ পোস্টের লিংক ফরম্যাট সঠিক নয়!")
             user_states.pop(uid, None)
             return
 
-        await event.respond("⚡ **সব অ্যাকাউন্ট দিয়ে ভিউ ও রিঅ্যাকশন দেওয়া হচ্ছে...**")
         all_s = list(sessions_col.find())
         done = 0
+        status_msg = await event.respond(f"⚡ সব অ্যাকাউন্ট দিয়ে ভিউ ও রিঅ্যাকশন দেওয়া হচ্ছে...")
         for doc in all_s:
             c = TelegramClient(StringSession(doc["session"]), API_ID, API_HASH)
             try:
@@ -355,10 +381,9 @@ async def message_flow(event):
                 await c.disconnect()
                 await asyncio.sleep(1.2)
             except Exception: pass
-        await event.respond(f"⚡ **সম্পন্ন!** `{done}` টি অ্যাকাউন্ট দিয়ে ভিউ ও রিঅ্যাকশন দেওয়া হয়েছে।", buttons=main_menu())
+        await status_msg.edit(f"⚡ **সম্পন্ন!** `{done}` টি অ্যাকাউন্ট দিয়ে ভিউ ও রিঅ্যাকশন সম্পন্ন।", buttons=main_menu())
         user_states.pop(uid, None)
 
-# মূল স্টার্টআপ ফাংশন
 async def main():
     await start_dummy_server()
     await bot.start(bot_token=BOT_TOKEN)
