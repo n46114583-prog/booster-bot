@@ -1,3 +1,4 @@
 telethon
-pymongo
+pymongo[srv]
 dnspython
+certifi
